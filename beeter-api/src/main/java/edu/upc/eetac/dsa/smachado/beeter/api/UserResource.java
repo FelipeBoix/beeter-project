@@ -8,12 +8,21 @@ import java.sql.SQLException;
 import javax.sql.DataSource;
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.ServerErrorException;
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.CacheControl;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.EntityTag;
+import javax.ws.rs.core.Request;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
@@ -163,4 +172,230 @@ public class UserResource {
  
 		return user;
 	}
+	private final static String GET_USER_BY_USERNAME ="select * from users where username=?";
+	@Path("/{username}")
+	@GET
+	@Produces(MediaType.BEETER_API_USER)
+	public Response getProfile(@QueryParam("username") String username, @Context Request request){
+		
+		
+		System.out.println("Implementamos el cache");
+		
+		// Create CacheControl
+		CacheControl cc = new CacheControl();
+		
+		User user = getprofileUserFromDatabase(username);
+		//pillamos el correo y el username para ver si ha modificado
+		String s = user.getEmail() + " " + user.getName();
+		
+		//Calculate the ETag on last modified date of user resource
+		EntityTag eTag = new EntityTag(Long.toString(s.hashCode()));
+	 
+		// Verify if it matched with etag available in http request
+		Response.ResponseBuilder rb = request.evaluatePreconditions(eTag);
+		
+		// If ETag matches the rb will be non-null;
+		// Use the rb to return the response without any further processing
+		if (rb != null) {
+			return rb.cacheControl(cc).tag(eTag).build();
+		}
+	 
+		// If rb is null then either it is first time request; or resource is
+		// modified
+		// Get the updated representation and return with Etag attached to it
+		rb = Response.ok(user).cacheControl(cc).tag(eTag);
+	 
+		return rb.build();
+		
+	}
+	
+	private User getprofileUserFromDatabase( String username) {
+		System.out.println("Conectamos a la base de datos" + username);
+		
+		User user = new User();
+		 
+		Connection conn = null;
+		try {
+			conn = ds.getConnection();
+		} catch (SQLException e) {
+			throw new ServerErrorException("Could not connect to the database",
+					Response.Status.SERVICE_UNAVAILABLE);
+		}
+		
+		PreparedStatement stmt = null;
+		try {
+			System.out.println("Preparamos la query");
+			stmt = conn.prepareStatement(GET_USER_BY_USERNAME);
+			stmt.setString(1, username);
+			ResultSet rs = stmt.executeQuery();
+			System.out.println("Ejecutamos la query");
+			if (rs.next()) {
+				user.setUsername(rs.getString("username"));
+				user.setName(rs.getString("name"));
+				user.setEmail(rs.getString("email"));
+				
+			
+			} else {
+				throw new NotFoundException("There's no user with username="
+						+ username);
+			}
+		} catch (SQLException e) {
+			throw new ServerErrorException(e.getMessage(),
+					Response.Status.INTERNAL_SERVER_ERROR);
+		} finally {
+			try {
+				if (stmt != null)
+					stmt.close();
+				conn.close();
+			} catch (SQLException e) {
+			}
+		}
+	 
+		return user;
+	 
+		
+		
+	}
+	
+	
+	
+	
+	private final static String DELETE_USER_QUERY = "Delete from users where username=? ";
+	@DELETE //metodo para borrar un sting concreto
+	@Path("/{username}")
+	public void deleteUser(@PathParam("username") String username) {
+		//tenemos un void de manera que no devuelve nada ni consume ni produce, devuelve 204 ya que no hay contenido
+		
+		Connection conn = null;
+		try {
+			conn = ds.getConnection();
+		} catch (SQLException e) {
+			throw new ServerErrorException("Could not connect to the database",
+					Response.Status.SERVICE_UNAVAILABLE);
+		}
+	 
+		PreparedStatement stmt = null;
+		try {
+			stmt = conn.prepareStatement(DELETE_USER_QUERY);
+			stmt.setString(1, username);
+	 
+			int rows = stmt.executeUpdate();
+			if (rows == 0)
+				throw new NotFoundException("There's no sting with username="
+						+ username);
+		} catch (SQLException e) {
+			throw new ServerErrorException(e.getMessage(),
+					Response.Status.INTERNAL_SERVER_ERROR);
+		} finally {
+			try {
+				if (stmt != null)
+					stmt.close();
+				conn.close();
+			} catch (SQLException e) {
+			}
+		}
+	}
+	
+	
+	
+	
+	private final static String UPDATE_USER_QUERY = "update users set email=ifnull(?, email), name=ifnull(?, name) where username=?";
+	@PUT
+	@Path("/{username}")
+	@Consumes(MediaType.BEETER_API_USER)
+	@Produces(MediaType.BEETER_API_USER)
+	public User updateUser(@PathParam("username") String username, User user) {
+		
+		//validateUser(username);
+		Connection conn = null;
+		try {
+			conn = ds.getConnection();
+		} catch (SQLException e) {
+			throw new ServerErrorException("Could not connect to the database",
+					Response.Status.SERVICE_UNAVAILABLE);
+		}
+	 
+		PreparedStatement stmt = null;
+		try {
+			
+			
+			stmt = conn.prepareStatement(UPDATE_USER_QUERY);
+			stmt.setString(1, user.getName());
+			stmt.setString(2, user.getEmail());
+			stmt.setString(3, username);
+	 
+			int rows = stmt.executeUpdate();
+			if (rows == 1)
+				user = getUsernameFromDatabase(username);
+	 
+		} catch (SQLException e) {
+			throw new ServerErrorException(e.getMessage(),
+					Response.Status.INTERNAL_SERVER_ERROR);
+		} finally {
+			try {
+				if (stmt != null)
+					stmt.close();
+				conn.close();
+			} catch (SQLException e) {
+			}
+		}
+	 
+		return user;
+	}
+	 
+
+		private User getUsernameFromDatabase(String username) {// Cogemos datos del
+		// username
+		User user = new User();
+
+// Hacemos la conexión a la base de datos
+	Connection conn = null;
+	try {
+		conn = ds.getConnection();
+		} catch (SQLException e) {
+			throw new ServerErrorException("Could not connect to the database",
+					Response.Status.SERVICE_UNAVAILABLE);	
+			}
+
+	PreparedStatement stmt = null;
+	try {
+		stmt = conn.prepareStatement(buildGetUserByUsername());
+		stmt.setString(1, username);
+		ResultSet rs = stmt.executeQuery();
+		if (rs.next()) {
+			user.setUsername(rs.getString("username"));
+			user.setName(rs.getString("name"));
+			user.setEmail(rs.getString("email"));
+
+		} else {
+			throw new NotFoundException("There's no sting with username ="
+					+ username);
+		}
+
+	} catch (SQLException e) {
+		throw new ServerErrorException(e.getMessage(),
+				Response.Status.INTERNAL_SERVER_ERROR);
+	} finally {
+		try {
+			if (stmt != null)
+				stmt.close();
+			conn.close();
+		} catch (SQLException e) {
+
+		}
+	}
+	return user;
+
+		}
+	
+		public String buildGetUserByUsername() {
+			return "SELECT *FROM users WHERE username=?;";
+		}
+		
+		
+		
+	
+	
 }
+	
+	

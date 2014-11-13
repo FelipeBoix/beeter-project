@@ -331,6 +331,65 @@ public class StingResource {
 	 
 		return sting;
 		}
+	private String GET_STING_BY_SUBJECT_AND_CONTENT = "select s.*, u.name from stings s, users u where u.username=s.username and s.stingid=?";
+	/*private String GET_STING_BY_SUBJECT = "select s.*, u.name from stings s, users u where u.username=s.username and s.stingid=?";
+	private String GET_STING_BY_CONTENT = "select s.*, u.name from stings s, users u where u.username=s.username and s.stingid=?";
+	*/
+	@GET
+	@Path("/search")
+	@Produces(MediaType.BEETER_API_STING_COLLECTION)
+	
+	public StingCollection getSearch(@QueryParam("subject") String subject, @QueryParam("content") String content, @QueryParam("length") int length){
+	StingCollection stings = new StingCollection();
+	
+	Connection conn = null;
+	try {
+		conn = ds.getConnection();
+	} catch (SQLException e) {
+		e.printStackTrace();
+	}
+ 
+	PreparedStatement stmt = null;
+	try {
+		
+		stmt = conn.prepareStatement(GET_STING_BY_SUBJECT_AND_CONTENT);
+		stmt.setString(1, subject);
+		stmt.setString(2, content);
+		stmt.setInt(3, length);
+		
+		ResultSet rs = stmt.executeQuery();
+		//int contador = 0;
+	
+		while (rs.next()) {
+		Sting sting = new Sting();
+		sting.setStingid(rs.getString("stingid"));
+		sting.setUsername(rs.getString("username"));
+		sting.setAuthor(rs.getString("name"));
+		sting.setSubject(rs.getString("subject"));
+		sting.setContent(rs.getString("content"));
+		//contador ++;
+		}
+	}
+		
+		catch (SQLException e) {
+			throw new ServerErrorException(e.getMessage(),
+					Response.Status.INTERNAL_SERVER_ERROR);
+		} finally {
+			try {
+				if (stmt != null)
+					stmt.close();
+				conn.close();
+			} catch (SQLException e) {
+			}
+		}
+	 
+		return stings;
+	}
+		
+	
+	
+	
+	
 	
 	
 	private void validateUpdateSting(Sting sting) {
