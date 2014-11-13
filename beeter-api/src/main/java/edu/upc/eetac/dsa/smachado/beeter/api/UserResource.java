@@ -344,11 +344,9 @@ public class UserResource {
 	}
 	 
 
-		private User getUsernameFromDatabase(String username) {// Cogemos datos del
-		// username
+		private User getUsernameFromDatabase(String username) {
+		
 		User user = new User();
-
-// Hacemos la conexión a la base de datos
 	Connection conn = null;
 	try {
 		conn = ds.getConnection();
