@@ -4,7 +4,7 @@ create database beeterdb;
 use beeterdb;
 
 create table users (
-	username	varchar(20) not null primary key,
+	username	varchar(30) not null primary key,
 	userpass	char(32) not null,
 	name		varchar(70) not null,
 	email		varchar(255) not null
